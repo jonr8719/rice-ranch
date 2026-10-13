@@ -173,3 +173,9 @@ h2::after{content:"";position:absolute;left:0;bottom:0;width:64px;height:4px;bor
 #toast{font-family:Bitter,serif}
 .cmt b{color:color-mix(in srgb,var(--c) 70%,var(--ink))}
 @media (prefers-color-scheme:dark){.cmt b{color:color-mix(in srgb,var(--c) 35%,var(--ink))}}
+.ev.game{background:var(--soft);border-left-width:6px}
+.ev.game.vols{background:linear-gradient(90deg,#ff82001f,var(--soft) 60%)}
+.ev.game.cowboys{border-left-color:#041e42;box-shadow:inset -3px 0 0 #869397;background:linear-gradient(90deg,#869e9e26,var(--soft) 60%)}
+@media (prefers-color-scheme:dark){.ev.game.cowboys{border-left-color:#869397}}
+.toggle{display:flex;align-items:center;gap:8px;padding:8px 0;font-weight:600}.toggle input{width:20px;height:20px;accent-color:var(--accent)}
+.tdot{width:12px;height:12px;border-radius:50%;display:inline-block;border:1px solid #869397}

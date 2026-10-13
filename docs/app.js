@@ -1,6 +1,7 @@
 import * as S from './store.js';
 import { MILESTONES } from './config.js';
 import { DATE_IDEAS, NEAR_ME } from './dates.js';
+import * as G from './games.js';
 import { HERO, HORSESHOE, WHEAT, LASSO, BARN } from './art.js';
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -95,6 +96,9 @@ function drawMeme() {
 }
 
 /* ---------- Calendar ---------- */
+const hidden = () => st().settings.hideTeams || {};
+const gamesOn = (date) => G.games().filter((g) => !hidden()[g.team] && (!date || g.date === date));
+const gameHTML = (g, showDate) => `<button class="ev game ${g.team}" data-game="${g.id}" style="--c:${G.TEAMS[g.team].color}">${showDate ? `<small>${new Date(g.date + 'T12:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</small>` : ''}<b>${esc(G.title(g))}</b><span>${esc(G.detail(g))}</span></button>`;
 function busy(k, date) { return st().events.filter((e) => e.date === date && (e.by === k || e.by === 'both')); }
 function freeEvening(date) { const ev = (k) => busy(k, date).some((e) => e.end > '17:00' || e.start >= '17:00'); return !ev('a') && !ev('b'); }
 function calendar() {
@@ -102,9 +106,9 @@ function calendar() {
   const t = todayISO(); let cells = '';
   for (let i = 0; i < first.getDay(); i++) cells += '<div></div>';
   for (let d = 1; d <= days; d++) {
-    const iso = localISO(new Date(y, m, d)), evs = st().events.filter((e) => e.date === iso), dow = new Date(y, m, d).getDay();
+    const iso = localISO(new Date(y, m, d)), evs = st().events.filter((e) => e.date === iso), gms = gamesOn(iso), dow = new Date(y, m, d).getDay();
     const free = iso >= t && freeEvening(iso);
-    cells += `<button class="day ${iso === t ? 'today' : ''} ${iso === calSel ? 'sel' : ''} ${free ? 'free' : ''} ${dow % 6 === 0 ? 'wk' : ''}" data-day="${iso}" aria-label="${iso}${free ? ', both free evening' : ''}"><span>${d}</span><i>${evs.slice(0, 3).map((e) => `<em style="background:${e.by === 'both' ? 'var(--both)' : U(e.by).color}"></em>`).join('')}</i></button>`;
+    cells += `<button class="day ${iso === t ? 'today' : ''} ${iso === calSel ? 'sel' : ''} ${free ? 'free' : ''} ${dow % 6 === 0 ? 'wk' : ''}" data-day="${iso}" aria-label="${iso}${free ? ', both free evening' : ''}"><span>${d}</span><i>${gms.map((g) => `<em class="gdot" style="background:${G.TEAMS[g.team].color}"></em>`).join('')}${evs.slice(0, 3 - gms.length).map((e) => `<em style="background:${e.by === 'both' ? 'var(--both)' : U(e.by).color}"></em>`).join('')}</i></button>`;
   }
   const tonightFree = freeEvening(t);
   const sel = st().events.filter((e) => e.date === calSel).sort((a, b) => a.start.localeCompare(b.start));
@@ -113,10 +117,16 @@ function calendar() {
   <section class="card"><div class="calhead"><button data-cal="-1" aria-label="Previous month">‹</button><h2>${calMonth.toLocaleString(undefined, { month: 'long', year: 'numeric' })}</h2><button data-cal="1" aria-label="Next month">›</button></div>
   <div class="seg"><button data-calview="month" class="${calView === 'month' ? 'on' : ''}">Month</button><button data-calview="agenda" class="${calView === 'agenda' ? 'on' : ''}">Agenda</button></div>
   ${calView === 'month' ? `<div class="cal"><b>S</b><b>M</b><b>T</b><b>W</b><b>T</b><b>F</b><b>S</b>${cells}</div>
-  <div class="legend"><span><em style="background:var(--a)"></em>${esc(U('a').name)}</span><span><em style="background:var(--b)"></em>${esc(U('b').name)}</span><span><em style="background:var(--both)"></em>Both</span><span><em class="freekey"></em>Both free evening</span></div>` : ''}</section>
+  <div class="legend"><span><em style="background:var(--a)"></em>${esc(U('a').name)}</span><span><em style="background:var(--b)"></em>${esc(U('b').name)}</span><span><em style="background:var(--both)"></em>Both</span>${Object.entries(G.TEAMS).filter(([k]) => !hidden()[k]).map(([k, T]) => `<span><em style="background:${T.color}"></em>${T.name}</span>`).join('')}<span><em class="freekey"></em>Both free evening</span></div>` : ''}</section>
   <section class="card"><h2>${calView === 'agenda' ? 'Upcoming' : new Date(calSel + 'T12:00').toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}</h2>
-  ${agenda.length ? agenda.map((e) => `<button class="ev" data-editev="${e.id}" style="--c:${e.by === 'both' ? 'var(--both)' : U(e.by).color}">${calView === 'agenda' ? `<small>${new Date(e.date + 'T12:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</small>` : ''}<b>${esc(e.title)}</b><span>${fmtT(e.start)}–${fmtT(e.end)} · ${esc(nameOf(e.by))}</span></button>`).join('') : `<p class="muted">${calView === 'month' && freeEvening(calSel) ? '🌅 Both free this evening. Perfect for a date.' : 'No events.'}</p>`}
+  ${(() => { const gl = calView === 'agenda' ? gamesOn().filter((g) => g.date >= t) : gamesOn(calSel); const items = [...agenda.map((e) => ({ k: e.date + e.start, h: evHTML(e) })), ...gl.map((g) => ({ k: g.date + g.start, h: gameHTML(g, calView === 'agenda') }))].sort((a, b) => a.k.localeCompare(b.k)); return items.length ? items.map((x) => x.h).join('') : ''; })() || (agenda.length ? agenda.map((e) => `<button class="ev" data-editev="${e.id}" style="--c:${e.by === 'both' ? 'var(--both)' : U(e.by).color}">${calView === 'agenda' ? `<small>${new Date(e.date + 'T12:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</small>` : ''}<b>${esc(e.title)}</b><span>${fmtT(e.start)}–${fmtT(e.end)} · ${esc(nameOf(e.by))}</span></button>`).join('') : `<p class="muted">${calView === 'month' && freeEvening(calSel) ? '🌅 Both free this evening. Perfect for a date.' : 'No events.'}</p>`)}
   <button class="primary" data-newev>+ Add event</button></section>`;
+}
+function evHTML(e) { return `<button class="ev" data-editev="${e.id}" style="--c:${e.by === 'both' ? 'var(--both)' : U(e.by).color}">${calView === 'agenda' ? `<small>${new Date(e.date + 'T12:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</small>` : ''}<b>${esc(e.title)}</b><span>${fmtT(e.start)}–${fmtT(e.end)} · ${esc(nameOf(e.by))}</span></button>`; }
+function gameDialog(g) {
+  const T = G.TEAMS[g.team];
+  openDialog(`<h2>${esc(G.title(g))}</h2><p><b>${new Date(g.at).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</b><br>${esc(G.detail(g))}</p>
+    <p class="muted">${g.home ? 'Home' : g.neutral ? 'Neutral site' : 'Away'}${g.venue ? ' · ' + esc(g.venue) : ''}<br>${esc(T.full)} schedule from ESPN, updates automatically.</p>`);
 }
 function eventDialog(ev) {
   const e = ev || { date: calSel, start: '18:00', end: '19:00', title: '', by: me() };
@@ -197,6 +207,9 @@ function settings() {
   ${['a', 'b'].map((k) => `<div class="row"><label>Person ${k === 'a' ? 1 : 2}<input name="${k}name" value="${esc(s.users[k].name)}"></label><label class="colorl">Color<input type="color" name="${k}color" value="${s.users[k].color}"></label></div>
   <div class="brandrow" style="--c:${s.users[k].color}"><span class="avatar">${esc(brandOf(k))}</span><label style="flex:1">${esc(s.users[k].name)}'s brand (1–3 letters, shown as avatar)<input name="${k}brand" value="${esc(s.users[k].brand || '')}" maxlength="3" placeholder="${esc((s.users[k].name || '?')[0])}" autocapitalize="characters"></label></div>`).join('<div class="rope"></div>')}
   <button class="primary">Save</button></form></section>
+  <section class="card"><h2>🏈 Game days</h2><p class="muted">Football schedules show up on the Round-Up calendar automatically.</p>
+  ${Object.entries(G.TEAMS).map(([k, T]) => `<label class="toggle"><input type="checkbox" data-team="${k}" ${hidden()[k] ? '' : 'checked'}> <span class="tdot" style="background:${T.color}"></span>${T.icon} ${esc(T.full)}</label>`).join('')}
+  <p class="muted small">${G.lastUpdated() ? 'Updated ' + ago(G.lastUpdated()) + ' ago' : 'Not loaded yet'} <button class="ghost" data-gamesrefresh>Refresh</button></p></section>
   <section class="card"><h2>Backup</h2><div class="row"><button class="ghost" data-export>Export JSON</button><label class="ghost filebtn">Import JSON<input type="file" accept="application/json" data-import hidden></label></div>
   <button class="danger" data-reset>Reset to sample data</button>
   <p class="muted small">Prototype: data lives only on this device (localStorage). Use export/import to move it.</p></section>`;
@@ -225,6 +238,8 @@ document.addEventListener('click', async (e) => {
   else if (d.calview) { calView = d.calview; render(); }
   else if (d.day) { calSel = d.day; render(); }
   else if (d.newev !== undefined) eventDialog();
+  else if (d.game) gameDialog(G.games().find((x) => x.id === d.game));
+  else if (d.gamesrefresh !== undefined) { toast('Checking schedules…'); if (await G.refresh(true)) { render(); toast('Schedules updated'); } else toast("Couldn't reach ESPN"); }
   else if (d.editev) eventDialog(st().events.find((x) => x.id === d.editev));
   else if (d.delev) { S.update((s) => (s.events = s.events.filter((x) => x.id !== d.delev))); $('#dlg').close(); }
   else if (d.filter) { dateFilters[d.filter] = dateFilters[d.filter] === d.val ? null : d.val; render(); }
@@ -261,7 +276,8 @@ document.addEventListener('change', async (e) => {
   if (t.name === 'photo' && t.files[0]) {
     const r = await compress(t.files[0]);
     if (composerMode === 'meme') { memeImg = r.img; drawMeme(); } else { pendingImg = r.url; const p = $('#preview'); p.src = r.url; p.hidden = false; }
-  } else if (t.dataset.import !== undefined && t.files[0]) { try { S.importJSON(await t.files[0].text()); toast('Backup restored'); } catch (err) { alert('Import failed: ' + err.message); } }
+  } else if (t.dataset.team) { S.update((s) => { s.settings.hideTeams ||= {}; s.settings.hideTeams[t.dataset.team] = !t.checked; }); }
+  else if (t.dataset.import !== undefined && t.files[0]) { try { S.importJSON(await t.files[0].text()); toast('Backup restored'); } catch (err) { alert('Import failed: ' + err.message); } }
 });
 document.addEventListener('input', (e) => { if (composerMode === 'meme' && (e.target.name === 'top' || e.target.name === 'bottom')) drawMeme(); });
 document.addEventListener('submit', (e) => {
@@ -280,6 +296,8 @@ document.addEventListener('submit', (e) => {
 });
 
 S.load(); render();
+G.refresh().then((u) => u && render());
+document.addEventListener('visibilitychange', () => { if (!document.hidden) G.refresh().then((u) => u && render()); });
 $('#dismiss-sample').onclick = () => S.update((s) => (s.sample = false));
 if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js');
-window.__us = { S, setTab: (t) => { tab = t; render(); } };
+window.__us = { S, G, setTab: (t) => { tab = t; render(); } };
