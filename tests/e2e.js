@@ -60,6 +60,9 @@ const contrastJS = () => {
       await p.click('[data-tab="trips"]'); await p.fill('#contrib [name=amount]', '800'); await p.click('#contrib .primary'); await p.waitForTimeout(100);
       ok(await p.evaluate(() => window.__us.S.get().posts.some((x) => /Halfway to the trail/.test(x.text))), 'halfway milestone post');
       await p.click('[data-skip="6"]'); ok(await p.evaluate(() => window.__us.S.get().posts[0].text.includes('Trail Fund')), 'skip it');
+      { const tot = () => p.evaluate(() => window.__us.S.get().trip.contributions.reduce((a, c) => a + c.amount, 0)); const before = await tot(); const n = await p.locator('[data-delcontrib]').count();
+        await p.click('[data-delcontrib] >> nth=0'); ok((await p.locator('[data-delcontrib]').count()) === n - 1 && (await tot()) === before - 6, 'delete contribution updates total');
+        await p.click('#toast [data-undo]'); ok((await tot()) === before, 'undo delete contribution'); }
       await p.click('[data-tab="lists"]'); await p.fill('#additem [name=t]', 'Hay bales'); await p.click('#additem .primary'); await p.click('[data-check] >> nth=0'); await p.click('[data-claim] >> nth=1'); await p.click('[data-newlist]'); ok(await p.locator('[data-list="Errands"]').count() === 1, 'lists');
       await p.click('[data-tab="settings"]'); await p.fill('[name=appName]', 'Rice Ranch'); await p.fill('[name=abrand]', 'jr'); await p.click('#setform .primary');
       ok((await p.textContent('#appname')) === 'Rice Ranch', 'ranch name'); ok(await p.evaluate(() => window.__us.S.get().settings.users.a.brand === 'JR'), 'brand saved');

@@ -174,7 +174,7 @@ function trips() {
   <section class="card"><h2>🙅 Skip it</h2><p class="muted">Passed on a purchase? Put it in the Trail Fund.</p>
   <div class="chips">${[['☕ Coffee', 6], ['🍔 Takeout', 25], ['🛍️ Impulse buy', 40], ['🍿 Snack', 4], ['🍺 Round at the bar', 12]].map(([l, a]) => `<button class="chip" data-skip="${a}" data-label="${l}">${l} ${money(a)}</button>`).join('')}</div></section>
   <section class="card"><h2>Add to the fund</h2><form id="contrib" class="row"><input name="amount" type="number" min="1" step="1" placeholder="$ amount" required aria-label="Amount"><input name="note" placeholder="Note" aria-label="Note"><button class="primary">Add</button></form>
-  <ul class="hist">${[...t.contributions].reverse().slice(0, 12).map((c) => `<li style="--c:${U(c.by).color}"><span class="dot"></span>${esc(U(c.by).name)} · ${esc(c.note || 'Contribution')}<b>+${money(c.amount)}</b></li>`).join('')}</ul></section>`;
+  <ul class="hist">${[...t.contributions].reverse().slice(0, 12).map((c) => `<li style="--c:${U(c.by).color}"><span class="dot"></span>${esc(U(c.by).name)} · ${esc(c.note || 'Contribution')}<b>+${money(c.amount)}</b><button class="del" data-delcontrib="${c.id}" aria-label="Remove ${money(c.amount)} ${esc(c.note || 'contribution')}">✕</button></li>`).join('')}</ul></section>`;
 }
 function addContribution(amount, note, skip) {
   let hit = null;
@@ -186,6 +186,15 @@ function addContribution(amount, note, skip) {
   if (skip) autoPost(`🙅 ${U(me()).name} skipped ${note.replace('Skipped: ', '')} — ${money(amount)} to the ${st().trip.name} Trail Fund!`);
   if (hit) { const t = st().trip; const saved = money(t.contributions.reduce((a, c) => a + c.amount, 0)); autoPost(hit === 1 ? `🎉 ${t.name} is fully funded! Saddle up! 🤠` : hit === 0.5 ? `🐎 Halfway to the trail! ${t.name} fund is at 50%, ${saved} saved.` : `🐎 ${t.name} Trail Fund hit ${hit * 100}%! ${saved} saved.`); confetti(); }
   toast(`${money(amount)} added`);
+}
+let undoFn = null;
+function delContribution(id) {
+  const t = st().trip, i = t.contributions.findIndex((c) => c.id === id); if (i < 0) return; const c = t.contributions[i];
+  if (!confirm(`Remove ${money(c.amount)} (${c.note || 'Contribution'}) from the Trail Fund?`)) return;
+  // Feed posts are left as-is (history); totals are always computed from contributions.
+  S.update((s) => { s.trip.contributions = s.trip.contributions.filter((x) => x.id !== id); const pct = s.trip.contributions.reduce((a, x) => a + x.amount, 0) / s.trip.goal; s.trip.milestonesHit = s.trip.milestonesHit.filter((m) => pct >= m); });
+  undoFn = () => S.update((s) => { s.trip.contributions.splice(Math.min(i, s.trip.contributions.length), 0, c); const pct = s.trip.contributions.reduce((a, x) => a + x.amount, 0) / s.trip.goal; for (const m of MILESTONES) if (pct >= m && !s.trip.milestonesHit.includes(m)) s.trip.milestonesHit.push(m); });
+  const tt = $('#toast'); tt.innerHTML = `Removed ${money(c.amount)} <button data-undo>Undo</button>`; tt.classList.add('show'); clearTimeout(tt._t); tt._t = setTimeout(() => { tt.classList.remove('show'); undoFn = null; }, 5000);
 }
 function confetti() { const c = document.createElement('div'); c.className = 'confetti'; c.innerHTML = Array.from({ length: 30 }, (_, i) => `<i style="left:${Math.random() * 100}%;animation-delay:${Math.random() * 0.4}s;background:${['#a63a2b', '#e9a84c', '#6f8550', '#8b5a2b', '#f3dfb4', '#c9a77a'][i % 6]}"></i>`).join(''); document.body.append(c); setTimeout(() => c.remove(), 2200); }
 
@@ -252,6 +261,8 @@ document.addEventListener('click', async (e) => {
     else if ((st().hearts[d.heart] || []).includes(me())) autoPost(`❤️ ${U(me()).name} hearted a date idea: ${idea.title}`);
   }
   else if (d.rate) { S.update((s) => (s.ratings[d.rate] = +d.n)); toast('Thanks for rating!'); }
+  else if (d.delcontrib) delContribution(d.delcontrib);
+  else if (d.undo !== undefined && undoFn) { undoFn(); undoFn = null; $('#toast').classList.remove('show'); }
   else if (d.skip) addContribution(+d.skip, 'Skipped: ' + d.label, true);
   else if (d.edittrip !== undefined) { const t = st().trip; openDialog(`<h2>Edit trip</h2><form><label>Destination<input name="name" value="${esc(t.name)}" required></label><label>Trip date<input type="date" name="date" value="${t.date}" required></label><label>Goal ($)<input type="number" name="goal" value="${t.goal}" min="1" required></label><button class="primary">Save</button></form>`, (f) => S.update((s) => { s.trip.name = f.name.value; s.trip.date = f.date.value; s.trip.goal = +f.goal.value; })); }
   else if (d.list) { listName = d.list; render(); }

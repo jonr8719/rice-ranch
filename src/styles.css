@@ -179,3 +179,4 @@ h2::after{content:"";position:absolute;left:0;bottom:0;width:64px;height:4px;bor
 @media (prefers-color-scheme:dark){.ev.game.cowboys{border-left-color:#869397}}
 .toggle{display:flex;align-items:center;gap:8px;padding:8px 0;font-weight:600}.toggle input{width:20px;height:20px;accent-color:var(--accent)}
 .tdot{width:12px;height:12px;border-radius:50%;display:inline-block;border:1px solid #869397}
+#toast button{margin-left:10px;background:none;border:0;color:inherit;font-weight:700;text-decoration:underline;pointer-events:auto}.hist li .del{margin-left:8px}
